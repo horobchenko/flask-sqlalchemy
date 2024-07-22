@@ -1,7 +1,6 @@
 import dataclasses
 from datetime import datetime
 from typing import List
-
 import lmfit
 import numpy as np
 import scipy
@@ -17,7 +16,9 @@ class TableNameMixin:
     @declared_attr.directive
     def __tablename__(cls) -> str:
         return cls.__name__.lower()
-class User(db.Model, TableNameMixin, UserMixin):
+
+
+class User(db.Model, TableNameMixin):
 
     id = mapped_column(db.Integer, primary_key=True)
     name = mapped_column(db.String(50), unique=True)
@@ -30,6 +31,8 @@ class User(db.Model, TableNameMixin, UserMixin):
 
     def __repr__(self) -> str:
         return f"User(id={self.id!r}, name={self.name!r}, battery={self.battery!r})"
+
+
 @dataclasses.dataclass
 class Parameters:
     first_icacycle: int
@@ -40,6 +43,8 @@ class Parameters:
     filter_parameter: int
     peak: int
     lmfit_model: str
+
+
 class Battery(db.Model,  TableNameMixin):
 
     id = mapped_column(db.Integer, primary_key=True, autoincrement=True)
@@ -59,29 +64,29 @@ class Battery(db.Model,  TableNameMixin):
 
     def __repr__(self) -> str:
         return f"Battery(id={self.id!r}, type = {self.bat_type!r}, ccct_data ={self.ccct_data!r}, ica_data = {self.ica_data!r}, , nominal charge = {self.nominal_charge!r})"
+
+
 class CcctData(db.Model, TableNameMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
     overal_charge: Mapped[float] = mapped_column(nullable=True)
     nominal_charge = db.column_property(db.select(Battery.nominal_charge).scalar_subquery())
-
     timestamp: Mapped[datetime]
     ccct_time:Mapped[int]= mapped_column(nullable=True)
     soc = db.column_property(overal_charge / nominal_charge)
-
     battery: Mapped["Battery"] = db.relationship(back_populates="ccct_data")
     bat_id: Mapped[int] = mapped_column(db.ForeignKey("battery.id"))
 
     def __repr__(self) -> str:
         return f"Ccct(id={self.id!r}, soc={self.soc!r},  ccct = {self.ccct_time!r}, time = {self.timestamp!r} )"
+
+
 class IcaData (db.Model, TableNameMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     stap_charge: Mapped[float] = mapped_column(nullable=True)
     stap_voltage: Mapped[float]= mapped_column(nullable=True)
     timestamp: Mapped[datetime] = mapped_column()
-
     bat_id: Mapped[int] = mapped_column(db.ForeignKey("battery.id"))
     battery:Mapped["Battery"] = db.relationship(back_populates="ica_data")
 
@@ -93,6 +98,7 @@ class BattaryAnalizer:
     battery: Battery
     session: db.session
 
+    
     def __init__(self, name: str, session: db.session) -> None:
         self.session = session
         stmt = db.select(db.Bundle("user", User.name), db.Bundle("battery", Battery.id),)\
@@ -101,6 +107,7 @@ class BattaryAnalizer:
             battery_id = row.battery.id
             self.battery = self.session.get(Battery, battery_id)
 
+    
     def gaussian_f(self, data: pd.DataFrame) -> pd.DataFrame:
         s: int = self.battery.parameters.filter_parameter
         unfilt = data['dQ/dV']
@@ -108,6 +115,7 @@ class BattaryAnalizer:
         data['G_Smoothed_dQ/dV'] = scipy.ndimage.gaussian_filter(unfiltar, sigma=s)
         return data
 
+    
     def detect_peak_width(self, data: pd.DataFrame) -> list:
         w = list()
         peaks, _ = find_peaks(data['G_Smoothed_dQ/dV'])
@@ -119,9 +127,9 @@ class BattaryAnalizer:
             w.append(width)
         return w, peaks
 
+    
     # Повертає таблицю з даними для побудови IC
     def make_inc_curve(self, staps) -> pd.DataFrame:
-
             stmt = db.select(Battery, db.func.count(IcaData.id)).join_from(Battery, IcaData).group_by(IcaData.bat_id)
             for bat, data_staps_count in self.session.execute(stmt):
                 if bat.id == self.battery.id:
@@ -145,8 +153,8 @@ class BattaryAnalizer:
                         data = data[data['dQ/dV'] >= 0]
                         return data
 
+    
     def estimate_stop_time(self):
-
             stmt = db.select(Battery, db.func.count(CcctData.id)).join_from(Battery, CcctData).group_by(CcctData.bat_id)
             for bat, cycles_count in self.session.execute(stmt):
                 if bat.id == self.battery.id:
@@ -198,6 +206,7 @@ class BattaryAnalizer:
         else:
             print("Waiting for data to set voltage borders!")
 
+    
     def estimate_right_border(self) -> None:
         peak = self.battery.parameters.peak
         data = self.make_inc_curve(60)
