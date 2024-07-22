@@ -1,0 +1,116 @@
+{% extends 'layout.html'%}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg bg-body-tertiary" style="background-color: #e3f2fd;"
+     xmlns="http://www.w3.org/1999/html">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">BatteryAnalizerApp</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link active" aria-current="page" href="{{ url_for('index') }}">Головна</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('logout') }}">Вихід</a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Додаткова інформація
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#">Наша команда</a></li>
+            <li><a class="dropdown-item" href="#">Форум</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#">Наші партнери</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+       <div class="container-fluid">
+    <form class="d-flex" role="search">
+      <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+      <button class="btn btn-outline-success" type="submit">Пошук</button>
+    </form>
+  </div>
+  </div>
+</nav>
+<div class="container text-center">
+  <div class="row justify-content-md-center">
+<h1>{% block title %}Вітаємо в особистому кабінеті адміністратора {% endblock %}</h1>
+    <h2> {{text}}</h2>
+  </div>
+</div>
+<div class="row">
+    <div class="col">
+      <table  bgcolor="#AED6F1" style="margin-left: 20px;">
+           <thead>
+    <tr bgcolor="#ABB2B9">
+      <th>Ім'я</th>
+      <th>Стоп-час(с)</th>
+    </tr>
+  </thead>
+          <tbody>
+    {% for user in users %}
+     <tr>
+       <td> {{user.name}}</td>
+         <td> {{user.battery.stop_time}}</td>
+    {% endfor %}
+     </tr>
+          </tbody>
+      </table>
+    </div>
+    <div class="col">
+     <form action="/delete_user" method="post">
+        <label for="user_name">Оберіть користувача:</label>
+          <select name="user_name" id="user_name">
+          {% for user in users%}
+              <option value="user_name">{{user.name}}</option>
+          {% endfor %}
+          </select>
+          <input class="btn btn-primary btn-sm" type="submit" value="DELETE">
+      </form>
+        <p></p>
+       <div class="d-grid gap-2 d-md-block">
+           <button class="btn btn-primary" type="button" >Переглянути графік кривої</button>
+</div>
+
+
+    </div>
+    <div class="col">
+      <h3>Графік</h3>
+        <canvas id="myChart" width="400" height="400"></canvas>
+        {% block scripts %}
+          <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+           {% block app_scripts %}
+    <script>
+        const ctx = document.getElementById('myChart');
+        new Chart(ctx, {
+            type: 'bar',
+            data:{
+                labels:['тип батареї a', 'тип батареї b', 'тип батареї c'],
+                datasets: [{
+                    label: 'Кількість користувачів',
+                    data: [ {% for count in c %}
+                            {{ count }},
+                        {% endfor %}],
+                     borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+    </script>
+        {% endblock %}
+        {% endblock %}
+    </div>
+  </div>
+
+{% endblock %}

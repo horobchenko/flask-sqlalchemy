@@ -1,0 +1,47 @@
+div.content {
+    width: 100%;
+    border: solid #d0f7f8;
+    margin: auto;
+}
+div.content {
+    font-family:Verdana;
+    font-style:normal;
+    font-size:normal;
+    font-weight:bold;
+    text-align:center;
+}
+header {
+    padding: 1em;
+    color: #df73ff;
+    background-color: #f5c9ff;
+    clear: left;
+    text-align: justify-all;
+    margin: 20px;
+}
+footer {
+    padding: 1em;
+    color: black;
+    background-color: #f5c9ff;
+    clear: left;
+    margin: 20px;
+    text-align: left;
+    float:left;
+}
+
+html, body {
+    padding: 5em;
+    color: #80a096;
+    background-color: white;
+    font-weight:normal;
+    text-align:center;
+    }
+
+.form label{
+    width:80%;
+    margin: auto;
+    text-align: center;
+    border: 2px solid pink;
+    }
+
+
+
