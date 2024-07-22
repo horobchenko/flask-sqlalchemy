@@ -131,6 +131,8 @@ if __name__ == '__main__':
     app.run(debug=False)
 
 '''
+для запуску з консолі треба вмпортувати 
+app, db та models та запустити код нище 
 db.init_app(app)
 with app.app_context():
     db.create_all()
