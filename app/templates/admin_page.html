@@ -63,24 +63,19 @@
       </table>
     </div>
     <div class="col">
-     <form action="/delete_user" method="post">
-         <p><label for="name">Введіть ім'я користувача для видалення</label></p>
+     <form method="post">
+         <p><label for="name">Введіть ім'я користувача для видалення/зміни ім'я</label></p>
          <p><input name="name" id="name" required></p>
+         <p><input  formaction="/delete_user" class="btn btn-outline-primary btn-lg" type="submit" value="DELETE" ></p>
 
-         <p><input class="btn btn-outline-primary btn-lg" type="submit" value="DELETE"></p>
+         <p><button class="btn btn-outline-primary btn-lg" onclick="click()">Змінити</button> </p>
+
+         <p><label for="new_name">Введіть нове ім'я</label></p>
+         <p><input name="new_name" id="new_name" required disabled ></p>
+
+         <p><input formaction="/update_user" class="btn btn-outline-primary btn-lg" type="submit" value="Змінити ім'я" ></p>
+
      </form>
-        <!--<label for="user_name">Оберіть користувача:</label>
-          <select name="user_name" id="user_name">
-          {% for user in users%}
-              <option value="user_name">{{user.name}}</option>
-          {% endfor %}
-          </select>
-          <input class="btn btn-primary btn-sm" type="submit" value="DELETE">
-      </form>-->
-        <p></p>
-       <div class="d-grid gap-2 d-md-block">
-           <button class="btn btn-primary" type="button" >Переглянути графік кривої</button>
-</div>
 
 
     </div>
@@ -113,6 +108,12 @@
     }
   });
     </script>
+
+         <script>
+            function click(){
+             document.getElementById('new_name').disabled = false;
+             }
+             </script>
         {% endblock %}
         {% endblock %}
     </div>

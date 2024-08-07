@@ -1,6 +1,6 @@
 from __future__ import annotations
 from flask_login import login_user, login_required, logout_user
-from sqlalchemy import event
+from sqlalchemy import event, update
 from app.models import *
 from flask import Flask, render_template, redirect, flash, url_for
 from flask import request
@@ -82,7 +82,16 @@ def delete_user():
         db.session.commit()
         flash(f'Користувач {user} видалений з бази!')
         return redirect(url_for('admin_page'))
-
+@app.route('/update_user', methods = ['POST'])
+def update_user():
+    if request.method =="POST":
+        user_name = request.form['name']
+        new = request.form['new_name']
+        stmt = (update(User).where(User.name == user_name).values(name=new))
+        db.session.execute(stmt)
+        db.session.commit()
+        flash(f'Користувач {user_name} змінений!')
+        return redirect(url_for('admin_page'))
 @app.route('/user_page/<login>', methods = ['GET'])
 @login_required
 def user_page(login):
