@@ -62,22 +62,16 @@
           </tbody>
       </table>
     </div>
+
     <div class="col">
      <form method="post">
          <p><label for="name">Введіть ім'я користувача для видалення/зміни ім'я</label></p>
          <p><input name="name" id="name" required></p>
-         <p><input  formaction="/delete_user" class="btn btn-outline-primary btn-lg" type="submit" value="DELETE" ></p>
-
-         <p><button class="btn btn-outline-primary btn-lg" onclick="click()">Змінити</button> </p>
-
+         <p><input formaction="/delete_user" class="btn btn-outline-primary btn-lg" type="submit" value="DELETE" ></p>
          <p><label for="new_name">Введіть нове ім'я</label></p>
-         <p><input name="new_name" id="new_name" required disabled ></p>
-
+         <p><input name="new_name" id="new_name" ></p>
          <p><input formaction="/update_user" class="btn btn-outline-primary btn-lg" type="submit" value="Змінити ім'я" ></p>
-
      </form>
-
-
     </div>
     <div class="col">
       <h3>Графік</h3>
@@ -107,13 +101,8 @@
       }
     }
   });
-    </script>
+         </script>
 
-         <script>
-            function click(){
-             document.getElementById('new_name').disabled = false;
-             }
-             </script>
         {% endblock %}
         {% endblock %}
     </div>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from flask_login import login_user, login_required, logout_user
-from sqlalchemy import event, update
+from sqlalchemy import event, update, select
 from app.models import *
 from flask import Flask, render_template, redirect, flash, url_for
 from flask import request
@@ -77,20 +77,30 @@ def admin_page():
 def delete_user():
     if request.method =="POST":
         user = request.form['name']
-        u = User.query.filter_by(name=user).first()
-        db.session.delete(u)
-        db.session.commit()
-        flash(f'Користувач {user} видалений з бази!')
+        try:
+            user = User.query.filter_by(name=user).one_or_none()
+            db.session.delete(user)
+            db.session.commit()
+            flash(f'Користувач {user} видалений з бази!')
+        except:
+            db.session.rollback()
+            flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
+            print("Помилка завантаження даних!")
         return redirect(url_for('admin_page'))
 @app.route('/update_user', methods = ['POST'])
 def update_user():
     if request.method =="POST":
         user_name = request.form['name']
         new = request.form['new_name']
-        stmt = (update(User).where(User.name == user_name).values(name=new))
-        db.session.execute(stmt)
-        db.session.commit()
-        flash(f'Користувач {user_name} змінений!')
+        try:
+            user = db.session.execute(select(User).filter_by(name=user_name)).scalar_one()
+            user.name = new
+            db.session.commit()
+            flash(f'Користувач {user_name} змінений!')
+        except:
+            db.session.rollback()
+            flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
+            print("Помилка завантаження даних!")
         return redirect(url_for('admin_page'))
 @app.route('/user_page/<login>', methods = ['GET'])
 @login_required
