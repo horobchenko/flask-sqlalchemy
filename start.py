@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import socketio
 from flask_login import login_user, login_required, logout_user
 from sqlalchemy import event, update, select
 from app.models import *
@@ -6,6 +8,7 @@ from flask import Flask, render_template, redirect, flash, url_for
 from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, app
+
 
 
 @app.route( '/')
@@ -22,7 +25,7 @@ def submit():
             db.session.add(user)
             db.session.flush()
             bat_type = request.form['bat_type']
-            battery = Battery(bat_type = bat_type, nominal_charge = 0.1, user_id = user.id)
+            battery = Battery(bat_type = bat_type, user_id = user.id)
             db.session.add(battery)
             db.session.flush()
             if bat_type == 'a':
@@ -33,6 +36,8 @@ def submit():
                 battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'quadratic')
             else:
                 battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'qubic')
+
+            mqtt.subscribe(f'{mqtt.username}/groups/{name}')
             db.session.commit()
             flash('Вітаємо! Ви пройшли реєстрацію')
             return redirect(url_for('login'))
@@ -47,15 +52,12 @@ def login():
     login = request.form.get('name')
     password = request.form.get('password')
     if login and password:
-        if login == 'admin' and password == 1234:
-            return redirect(url_for('admin_page', login=login))
+        user = User.query.filter_by(name = login).first()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('user_page', login = login))
         else:
-            user = User.query.filter_by(name = login).first()
-            if user and check_password_hash(user.password, password):
-                login_user(user)
-                return redirect(url_for('user_page', login = login))
-            else:
-                flash('Будь-ласка, введіть правильний логін та пароль!')
+            flash('Будь-ласка, введіть правильний логін та пароль!')
     return render_template('login.html')
 
 @app.route('/admin_page', methods = ['GET', 'POST'])
@@ -105,6 +107,7 @@ def update_user():
 @app.route('/user_page/<login>', methods = ['GET'])
 @login_required
 def user_page(login):
+
     def ica_data_analize(login):
         bat = BattaryAnalizer(login, db.session)
         bat.estimate_left_border()
@@ -137,13 +140,11 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+#mqtt.client.loop_forever(retry_first_connection=True)
+
 if __name__ == '__main__':
-    app.run(host='127.0.0.1',port=54238 , debug=False)
+    socketio.run(app, host='127.0.0.1',port=54238 , debug=False, allow_unsafe_werkzeug=True)
 
 
 
-'''
-db.init_app(app)
-with app.app_context():
-    db.create_all()
-'''
+

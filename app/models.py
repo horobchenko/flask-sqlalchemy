@@ -1,4 +1,7 @@
 import dataclasses
+import json
+import numbers
+import string
 from datetime import datetime
 from typing import List
 
@@ -6,18 +9,23 @@ import lmfit
 import numpy as np
 import scipy
 import pandas as pd
+import streamlit
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 from sqlalchemy.orm import declared_attr, mapped_column, Mapped,composite
-from app import db
+from app import app, db, login_manager, mqtt, socketio,bootstrap
+import logging
 from flask_login import UserMixin
-from app import login_manager
+
+
+
+
 
 class TableNameMixin:
 
     @declared_attr.directive
     def __tablename__(cls) -> str:
         return cls.__name__.lower()
-class User(db.Model, TableNameMixin):
+class User(db.Model, TableNameMixin, UserMixin):
 
     id = mapped_column(db.Integer, primary_key=True)
     name = mapped_column(db.String(50), unique=True)
@@ -44,7 +52,7 @@ class Battery(db.Model,  TableNameMixin):
 
     id = mapped_column(db.Integer, primary_key=True, autoincrement=True)
     bat_type:Mapped[str]= mapped_column(db.String(1))
-    nominal_charge: Mapped[float] = mapped_column(nullable=True)
+    nominal_charge: Mapped[float] = mapped_column(nullable=True, default=1.0)
     parameters: Mapped[Parameters] = composite(mapped_column("f_ica_c", nullable=True), mapped_column("l_ica_c", nullable=True),mapped_column("f_ccct_c", nullable=True),
                                                mapped_column("l_ccct_c", nullable=True), mapped_column("ccct_stap", nullable=True), mapped_column("filter", nullable=True),
                                                mapped_column("peak", nullable=True), mapped_column("model", nullable=True))
@@ -62,14 +70,11 @@ class Battery(db.Model,  TableNameMixin):
 class CcctData(db.Model, TableNameMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
     overal_charge: Mapped[float] = mapped_column(nullable=True)
     nominal_charge = db.column_property(db.select(Battery.nominal_charge).scalar_subquery())
-
     timestamp: Mapped[datetime]
     ccct_time:Mapped[int]= mapped_column(nullable=True)
     soc = db.column_property(overal_charge / nominal_charge)
-
     battery: Mapped["Battery"] = db.relationship(back_populates="ccct_data")
     bat_id: Mapped[int] = mapped_column(db.ForeignKey("battery.id"))
 
@@ -81,7 +86,6 @@ class IcaData (db.Model, TableNameMixin):
     stap_charge: Mapped[float] = mapped_column(nullable=True)
     stap_voltage: Mapped[float]= mapped_column(nullable=True)
     timestamp: Mapped[datetime] = mapped_column()
-
     bat_id: Mapped[int] = mapped_column(db.ForeignKey("battery.id"))
     battery:Mapped["Battery"] = db.relationship(back_populates="ica_data")
 
@@ -210,51 +214,82 @@ class BattaryAnalizer:
         else:
             print("Waiting for data to set voltage borders!")
 
-'''
-Help functions
 
-def create_user(self, name: str):
-    user = User(name=name)
-    db.session.add(user)
-    db.session.commit()
-    print(f"New user was created with the name: {name}")
+#####  Help functions  #########################
+def insert_ica_data_by_name(name: str, charge: float, voltage: float):
+    id = bat_id_by_name(name)
+    with app.app_context():
+        db.session.execute(db.insert(IcaData).values(timestamp=db.func.now()).execution_options(render_nulls=True),
+            {"stap_charge": charge, "stap_voltage": voltage, "bat_id": id},
+        )
+        db.session.commit()
+        print(f"User {name} resieved ica data")
+
+def insert_ccct_data_by_name(name: str, ccct_time: float):
+    id = bat_id_by_name(name)
+    with app.app_context():
+        db.session.execute(db.insert(CcctData).values(timestamp=db.func.now()).execution_options(render_nulls=True),
+            {"ccct_time": ccct_time, "bat_id": id},
+        )
+        db.session.commit()
+        print(f"User {name} resieved ccct data")
+def bat_id_by_name(name: str):
+    with app.app_context():
+        stmt = db.select(db.Bundle("user", User.name), db.Bundle("battery", Battery.id), ).join_from(User, Battery).where(User.name == name)
+        for row in db.session.execute(stmt):
+            return row.battery.id
+
+########  MQTT methods #######3
+logger = logging.getLogger(__name__)
+
+@socketio.on('unsubscribe')
+def handle_unsubscribe():
+    mqtt.unsubscribe()
+    print('Unsubscribe!')
+@mqtt.on_message()
+def handle_mqtt_message(client, userdata, message):
+                data = dict(
+                    topic=message.topic,
+                    payload=message.payload.decode()
+                )
+                socketio.emit('mqtt_message', data=data)
+                print(f'Дані {data.items()}')
+                name = data.get("topic")
+                name = name.rsplit('/')
+                name = name[2]
+                payload = data.get("payload")
+                payload = payload.rsplit('"')
+                for j in payload:
+                    if j.startswith('ica-charge'):
+                        for i in payload:
+                            if (str.isdigit(i) or i.startswith('0.')):
+                                float(i)
+                                print(i)
+                                insert_ica_data_by_name(name = name, charge= i, voltage=0 )
+                    elif j.startswith('ica-voltage'):
+                        for i in payload:
+                            if (str.isdigit(i) or i.startswith('0.')):
+                                float(i)
+                                print(i)
+                                insert_ica_data_by_name(name = name, charge= 0, voltage=i )
+                    else:
+                        for i in payload:
+                            if (str.isdigit(i) or i.startswith('0.')):
+                                float(i)
+                                print(i)
+                                insert_ccct_data_by_name(name = name, ccct_time=i )
 
 
-def create_battery(self, user_name: str, bat_type: str, nominal_charge: float):
-    id = select(User.id).where(User.name == user_name)
-    user_id = db.session.scalar(id)
-    battery = Battery(bat_type=bat_type, user_id=user_id)
-    db.session.add(battery)
-    db.session.commit()
-    print(f"New battery was created with the battery type: {bat_type}")
 
-def set_parameters(self, name: str):
-    id = self.bat_id_by_name(name)
-    battery = db.session.get(Battery, id)
-    if battery.bat_type == 'a':
-        battery.parameters = Parameters(first_icacycle=1, last_icacycle=2, first_ccctcycle=3,
-                                            last_ccctcycle=10, ccct_cycles_stap=2, filter_parameter=3, peak=2,
-                                            lmfit_model='linear')
-        print(f"{name} battery parameters were updated, according to the battery type A")
-    else:
-        battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'qubic')
-        print(f"{name} battery parameters were updated, according to thr battery type B")
+@mqtt.on_log()
+def handle_logging(client, userdata, level, buf):
+    print(level, buf)
 
-def insert_ica_data_by_name(self, name: str, charge: float, voltage: float):
-    id = self.bat_id_by_name(name)
-    db.session.execute(
-        insert(IcaData).values(timestamp=func.now()).execution_options(render_nulls=True),
-        {"stap_charge": charge, "stap_voltage": voltage, "bat_id": id},
-    )
-    print(f"User {name} resieved ica data")
-    db.session.commit()
 
-def bat_id_by_name(self, name: str):
-    session = Session()
-    with session as session:
-        stmt = select(
-            Bundle("user", User.name),
-            Bundle("battery", Battery.id), ).join_from(User, Battery).where(User.name == name)
-    for row in session.execute(stmt):
-        return row.battery.id
-            '''
+
+
+
+
+
+
+
