@@ -279,8 +279,6 @@ def handle_mqtt_message(client, userdata, message):
                                 print(i)
                                 insert_ccct_data_by_name(name = name, ccct_time=i )
 
-
-
 @mqtt.on_log()
 def handle_logging(client, userdata, level, buf):
     print(level, buf)
