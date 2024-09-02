@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import socketio
 from flask_login import login_user, login_required, logout_user
 from sqlalchemy import event, update, select
 from app.models import *
@@ -9,8 +7,6 @@ from flask import request
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, app
 
-
-
 @app.route( '/')
 def index():
     return render_template('index.html')
@@ -18,7 +14,7 @@ def index():
 @app.route ( '/submit' , methods= [ 'GET', 'POST'] )
 def submit():
     if request.method == 'POST':
-        try:
+        #try:
             hash = generate_password_hash(request.form['password'])
             name = request.form['name']
             user = User(name = name, password = hash)
@@ -37,14 +33,14 @@ def submit():
             else:
                 battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'qubic')
 
-            mqtt.subscribe(f'{mqtt.username}/groups/{name}')
+            mqtt.subscribe(f'{mqtt.username}/groups/{name}', qos=1)
             db.session.commit()
             flash('Вітаємо! Ви пройшли реєстрацію')
             return redirect(url_for('login'))
-        except:
-            db.session.rollback()
-            flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
-            print("Помилка завантаження даних!")
+        #except:
+            #db.session.rollback()
+            #flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
+            #print("Помилка завантаження даних!")
     return render_template('registration.html')
 
 @app.route('/login', methods = ['GET', 'POST'])
@@ -61,7 +57,6 @@ def login():
     return render_template('login.html')
 
 @app.route('/admin_page', methods = ['GET', 'POST'])
-#@login_required
 def admin_page():
     users = User.query.all()
     t = list()
@@ -73,7 +68,6 @@ def admin_page():
     print(c)
     print(t)
     return render_template('admin_page.html', users = users, c = c, type = t)
-
 
 @app.route('/delete_user', methods = ['POST'])
 def delete_user():
@@ -140,10 +134,11 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-#mqtt.client.loop_forever(retry_first_connection=True)
-
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1',port=54238 , debug=False, allow_unsafe_werkzeug=True)
+    while socketio.run(app, host='127.0.0.1',port=54238 , debug=False, allow_unsafe_werkzeug=True):
+        mqtt.client.loop_forever()
+
+
 
 
 
