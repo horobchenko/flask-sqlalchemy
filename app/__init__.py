@@ -7,11 +7,11 @@ from flask_bootstrap import Bootstrap
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite+pysqlite:///battery.db"
-app.config['SECRET_KEY'] = 'jguitc6747990h'
+app.config['SECRET_KEY'] = ''
 app.config['MQTT_BROKER_URL'] = 'io.adafruit.com'
 app.config['MQTT_BROKER_PORT'] = 1883
 app.config['MQTT_USERNAME'] = 'Hor'
-app.config['MQTT_PASSWORD'] = 'aio_HDFF45ShPNqvhxied6XMkynMY59h'
+app.config['MQTT_PASSWORD'] = ''
 app.config['MQTT_KEEPALIVE'] = 5
 app.config['MQTT_TLS_ENABLED'] = False
 app.config['MQTT_CLEAN_SESSION'] = False
