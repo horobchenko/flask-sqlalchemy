@@ -108,14 +108,13 @@ class BattaryAnalizer:
     def gaussian_f(self, data: pd.DataFrame) -> pd.DataFrame:
         '''Ф-я для згладження інкрементної кривої накладанням фільтру Гаусса
         :return таблицю з данимим для побудови кривої після фільтрації'''
-
         s: int = self.battery.parameters.filter_parameter
         unfilt = data['dQ/dV']
         unfiltar = unfilt.values
         data['G_Smoothed_dQ/dV'] = scipy.ndimage.gaussian_filter(unfiltar, sigma=s)
         return data
 
-    def detect_peak_width(self, data: pd.DataFrame) -> list:
+    def detect_peak_width(self, data: pd.DataFrame):
         '''Ф-я для знаходження піків та їх ширини на графіку інкрементної кривої'''
         w = list()
         peaks, _ = find_peaks(data['G_Smoothed_dQ/dV'])
@@ -133,15 +132,16 @@ class BattaryAnalizer:
         stmt = db.select(Battery, db.func.count(IcaData.id)).join_from(Battery, IcaData).group_by(IcaData.bat_id)
         for bat, data_staps_count in self.session.execute(stmt):
                 if bat.id == self.battery.id:
+                    print(f"Кількість циклів {data_staps_count} - {bat.id}")
                     if data_staps_count == staps:
                         charge = self.session.scalars(db.select(IcaData.stap_charge).where(IcaData.bat_id == self.battery.id)).all()
                         voltage = self.session.scalars(db.select(IcaData.stap_voltage).where(IcaData.bat_id == self.battery.id)).all()
                         if staps == 30:
-                            d = {'Voltage(V)': voltage, 'Charge': charge}
-                            print("Got first ICA cycle data!")
-                        else:
+                            d = {'Voltage(V)': voltage[0:30], 'Charge': charge[0:30]}
+                            print("Отримані дані першого циклу для ICA аналізу!")
+                        elif staps == 60:
                             d = {'Voltage(V)': voltage[30:61], 'Charge': charge[30:61]}
-                            print("Got second ICA cycle data!")
+                            print("Отримані дані другого циклу для ICA аналізу!")
                         data = pd.DataFrame(data=d)
                         data['roundedV'] = round(data['Voltage(V)'], 3)
                         data = data.drop_duplicates(subset=['roundedV'])
@@ -152,6 +152,7 @@ class BattaryAnalizer:
                         data[['dQ/dV', 'dV', 'Charge_dQ']] = data[['dQ/dV', 'dV', 'Charge_dQ']].fillna(0)
                         data = data[data['dQ/dV'] >= 0]
                         return data
+
 
     def estimate_stop_time(self):
             '''Ф-я для розрахунку зарядного часу, що відповідає початку старіння батареї'''
@@ -188,44 +189,48 @@ class BattaryAnalizer:
                         else:
                             stop_time = np.cbrt(stop_time)
                         self.battery.stop_time =stop_time
-                        print(f"Battery analisys is done!You will get a messege when your battery will stop it`s life!")
+                        print(f"Аналіз даних акумулятора завершено!")
                         self.session.commit()
-
-
     def estimate_left_border(self) -> None:
         '''Ф-я для розрахунку лівої границі напруги, що відповідає старту
         для замірювання зарядного часу'''
         peak = self.battery.parameters.peak
         data = self.make_inc_curve(30)
-        if data:
-            data = self.gaussian_f(data)
-            width, _ = self.detect_peak_width(data)
-            w = np.array(width)
-            index_left_v = data['Voltage(V)'][w[peak][2].round()].item()
-            self.battery.left_border = index_left_v
-            self.session.commit()
-            print("Left voltage border set!")
-            name = db.session.scalar(db.select(User.name).join(Battery, User.id == self.battery.user_id))
-            mqtt.publish(f"{name}/l_border", index_left_v)
+        if data is None:
+            print("Додаток чекає на дані для встановлення лівої границі напруги!")
         else:
-            print("Waiting for data to set voltage borders!")
+            try:
+                data = self.gaussian_f(data)
+                width, _ = self.detect_peak_width(data)
+                w = np.array(width)
+                index_left_v = data['Voltage(V)'][w[peak][2].round()].item()
+                self.battery.left_border = index_left_v
+                self.session.commit()
+                print("Left voltage border set!")
+                name = db.session.scalar(db.select(User.name).join(Battery, User.id == self.battery.user_id))
+                mqtt.publish(f"{name}/l_border", index_left_v)
+            except:
+                print('Невалідні дані або параментри акумулятора(фільтр, номер піку)')
 
     def estimate_right_border(self) -> None:
         '''Ф-ія для розрахунку правої границі напруги, що відповідає зупинці заміру зарядного часу'''
         peak = self.battery.parameters.peak
         data = self.make_inc_curve(60)
-        if data:
-            data = self.gaussian_f(data)
-            width, peaks = self.detect_peak_width(data)
-            w = np.array(width)
-            peak_v = data['Voltage(V)'].iloc[peaks[peak]].item()
-            self.battery.right_border = peak_v
-            self.session.commit()
-            print("Right voltage border set!")
-            name = db.session.scalar(db.select(User.name).join(Battery, User.id == self.battery.user_id))
-            mqtt.publish(f"{name}/r_border", peak_v)
+        if data is None:
+            print("Додаток чекає на дані для встановлення правої границі напруги!")
         else:
-            print("Waiting for data to set voltage borders!")
+            try:
+                data = self.gaussian_f(data)
+                width, peaks = self.detect_peak_width(data)
+                w = np.array(width)
+                peak_v = data['Voltage(V)'].iloc[peaks[peak]].item()
+                self.battery.right_border = peak_v
+                self.session.commit()
+                print("Right voltage border set!")
+                name = db.session.scalar(db.select(User.name).join(Battery, User.id == self.battery.user_id))
+                mqtt.publish(f"{name}/r_border", peak_v)
+            except:
+                print('Невалідні дані або параментри акумулятора(фільтр, номер піку)')
 
 
 #####  Допоміжні функції  #########################
@@ -355,7 +360,6 @@ def handle_mqtt_message(client, userdata, message):
                                 float(i)
                                 print(i)
                                 insert_ccct_data_by_name(name = name, ccct_time=i, overal_charge=1)
-
 @mqtt.on_log()
 def handle_logging(client, userdata, level, buf):
     print(level, buf)

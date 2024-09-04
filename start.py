@@ -14,7 +14,7 @@ def index():
 @app.route ( '/submit' , methods= [ 'GET', 'POST'] )
 def submit():
     if request.method == 'POST':
-        #try:
+        try:
             hash = generate_password_hash(request.form['password'])
             name = request.form['name']
             user = User(name = name, password = hash)
@@ -32,15 +32,14 @@ def submit():
                 battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'quadratic')
             else:
                 battery.parameters = Parameters(1, 2, 3, 1, 1, 1, 1, 'qubic')
-
             mqtt.subscribe(f'{mqtt.username}/groups/{name}', qos=1)
             db.session.commit()
             flash('Вітаємо! Ви пройшли реєстрацію')
             return redirect(url_for('login'))
-        #except:
-            #db.session.rollback()
-            #flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
-            #print("Помилка завантаження даних!")
+        except:
+            db.session.rollback()
+            flash('Вітаємо! Спробуйте ще раз..щось пішло не так')
+            print("Помилка завантаження даних!")
     return render_template('registration.html')
 
 @app.route('/login', methods = ['GET', 'POST'])
@@ -101,19 +100,25 @@ def update_user():
 @app.route('/user_page/<login>', methods = ['GET'])
 @login_required
 def user_page(login):
-
-    def ica_data_analize(login):
+    '''def ica_data_analize(login):
         bat = BattaryAnalizer(login, db.session)
         bat.estimate_left_border()
         bat.estimate_right_border()
-
+        print(f' {login} Створено екземпляр аналізатору для Ica аналізу!')
     def ccct_data_analize(login):
         bat = BattaryAnalizer(login, db.session)
         bat.estimate_stop_time()
+        print(f' {login} Створено екземпляр аналізатору для Ccct аналізу!')
 
-    event.listen(Battery.ica_data, 'append', ica_data_analize)
-    event.listen(Battery.ccct_data, 'append', ccct_data_analize)
-
+    event.listen(IcaData.stap_charge, 'append', ica_data_analize)
+    event.listen(CcctData.ccct_time, 'append', ccct_data_analize)'''
+    bat = BattaryAnalizer(login, db.session)
+    bat.estimate_left_border()
+    bat.estimate_right_border()
+    print(f' {login} Створено екземпляр аналізатору для Ica аналізу!')
+    bat = BattaryAnalizer(login, db.session)
+    bat.estimate_stop_time()
+    print(f' {login} Створено екземпляр аналізатору для Ccct аналізу!')
     stmt = db.select(Battery.stop_time).join_from(User, Battery).where(User.name == login)
     stop_time = db.session.scalar(stmt)
     if stop_time is None:
@@ -134,9 +139,11 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+
+
 if __name__ == '__main__':
-    while socketio.run(app, host='127.0.0.1',port=54238 , debug=False, allow_unsafe_werkzeug=True):
-        mqtt.client.loop_forever()
+     socketio.run(app, host='127.0.0.1',port=54238 , debug=False, allow_unsafe_werkzeug=True)
+
 
 
 
